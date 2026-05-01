@@ -1,0 +1,1526 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>스도쿠 프린트 메이커</title>
+  <meta name="theme-color" content="#176b87">
+  <meta name="description" content="스도쿠 퍼즐을 생성하고 플레이하거나 A4로 인쇄할 수 있는 앱">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    :root {
+      --ink: #202124;
+      --muted: #62666d;
+      --line: #d7dbe0;
+      --panel: #ffffff;
+      --accent: #176b87;
+      --accent-strong: #0f4f63;
+      --paper: #f3f5f7;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Arial, "Malgun Gothic", sans-serif;
+      line-height: 1.45;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+    }
+
+    .controls {
+      padding: 24px;
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+    }
+
+    h1 {
+      font-size: 24px;
+      line-height: 1.2;
+      margin: 0 0 8px;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      color: var(--muted);
+      margin: 0 0 24px;
+      font-size: 14px;
+    }
+
+    .control-group {
+      margin: 0 0 22px;
+    }
+
+    .control-label {
+      display: block;
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    select,
+    input {
+      width: 100%;
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 1px solid #b8c0ca;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid #b8c0ca;
+      border-radius: 7px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .segmented button {
+      min-height: 42px;
+      border: 0;
+      border-right: 1px solid #b8c0ca;
+      background: #fff;
+      cursor: pointer;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .segmented button:last-child {
+      border-right: 0;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    button.primary,
+    button.secondary {
+      min-height: 44px;
+      border-radius: 7px;
+      border: 1px solid transparent;
+      padding: 9px 12px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover {
+      background: var(--accent-strong);
+    }
+
+    button.secondary {
+      background: #eef2f5;
+      border-color: #c9d1d8;
+      color: var(--ink);
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .mobile-print-note {
+      display: none;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .play-area {
+      max-width: 760px;
+      margin: 0 auto 28px;
+      padding: 20px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .play-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .play-head h2 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    .play-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .play-tools button {
+      min-height: 38px;
+      border-radius: 6px;
+      border: 1px solid #b8c0ca;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 7px 10px;
+    }
+
+    .play-tools button:hover {
+      background: #eef2f5;
+    }
+
+    .play-tools button.is-on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .play-board-wrap {
+      display: grid;
+      justify-items: center;
+      gap: 12px;
+    }
+
+    table.play-board {
+      width: min(86vw, 520px);
+      height: min(86vw, 520px);
+      max-width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      border: 3px solid #111;
+      background: #fff;
+    }
+
+    .play-board td {
+      width: 11.111%;
+      height: 11.111%;
+      border: 1px solid #757575;
+      padding: 0;
+      text-align: center;
+    }
+
+    .play-board tr:nth-child(3n) td {
+      border-bottom-width: 3px;
+      border-bottom-color: #111;
+    }
+
+    .play-board tr:nth-child(9) td {
+      border-bottom-width: 1px;
+    }
+
+    .play-board td:nth-child(3n) {
+      border-right-width: 3px;
+      border-right-color: #111;
+    }
+
+    .play-board td:nth-child(9) {
+      border-right-width: 1px;
+    }
+
+    .play-board input {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent-strong);
+      background: #fff;
+      outline: none;
+    }
+
+    .play-board input:focus {
+      background: #eaf6f8;
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    .play-board td.selected {
+      background: #eaf6f8;
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    .play-board .cell-content {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      position: relative;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      padding: 0;
+      font: inherit;
+      touch-action: manipulation;
+    }
+
+    .play-board .cell-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent-strong);
+      line-height: 1;
+    }
+
+    .play-board .notes {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      align-items: center;
+      justify-items: center;
+      color: #6b7280;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 3px;
+    }
+
+    .play-board td.given .cell-value {
+      color: #111;
+    }
+
+    .play-board td.given {
+      background: #f1f3f5;
+    }
+
+    .play-board input.given {
+      color: #111;
+      background: #f1f3f5;
+    }
+
+    .play-board input.wrong {
+      color: #b42318;
+      background: #fff1f0;
+    }
+
+    .play-board input.correct {
+      color: #176b35;
+      background: #edf8f0;
+    }
+
+    .play-board td.wrong {
+      background: #fff1f0;
+    }
+
+    .play-board td.wrong .cell-value {
+      color: #b42318;
+    }
+
+    .play-board td.correct {
+      background: #edf8f0;
+    }
+
+    .play-board td.correct .cell-value {
+      color: #176b35;
+    }
+
+    .play-board td.hint {
+      background: #fff7d6;
+    }
+
+    .play-board td.hint .cell-value {
+      color: #9a5b00;
+    }
+
+    .number-pad {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(42px, 1fr));
+      gap: 8px;
+      width: min(86vw, 520px);
+    }
+
+    .number-pad button {
+      min-height: 44px;
+      border: 1px solid #b8c0ca;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .number-pad button:hover,
+    .number-pad button.is-on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .play-message {
+      min-height: 22px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .preview-wrap {
+      min-width: 0;
+      padding: 28px;
+      overflow: auto;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto 28px;
+      padding: 12mm;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+      display: grid;
+      gap: 8mm;
+      align-content: start;
+    }
+
+    .page-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      border-bottom: 1px solid #cfd5dc;
+      padding-bottom: 5mm;
+    }
+
+    .page-title h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .page-title span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .puzzle-grid {
+      display: grid;
+      gap: 7mm;
+      align-items: start;
+      justify-items: center;
+    }
+
+    .layout-1 {
+      grid-template-columns: 1fr;
+    }
+
+    .layout-2 {
+      grid-template-columns: 1fr;
+    }
+
+    .layout-3,
+    .layout-4 {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6mm;
+    }
+
+    .puzzle-card {
+      width: 100%;
+      display: grid;
+      gap: 3mm;
+      justify-items: center;
+      break-inside: avoid;
+    }
+
+    .puzzle-meta {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    table.sudoku {
+      border-collapse: collapse;
+      table-layout: fixed;
+      background: #fff;
+      border: 2.4px solid #111;
+      width: var(--board-size);
+      height: var(--board-size);
+    }
+
+    .layout-1 table.sudoku {
+      --board-size: 168mm;
+    }
+
+    .layout-2 table.sudoku {
+      --board-size: 114mm;
+    }
+
+    .layout-3 table.sudoku,
+    .layout-4 table.sudoku {
+      --board-size: 82mm;
+    }
+
+    .sudoku td {
+      width: 11.111%;
+      height: 11.111%;
+      border: 0.7px solid #565656;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 18px;
+      font-weight: 700;
+      color: #111;
+      padding: 0;
+    }
+
+    .layout-1 .sudoku td {
+      font-size: 25px;
+    }
+
+    .layout-2 .sudoku td {
+      font-size: 21px;
+    }
+
+    .sudoku tr:nth-child(3n) td {
+      border-bottom-width: 2.2px;
+      border-bottom-color: #111;
+    }
+
+    .sudoku tr:nth-child(9) td {
+      border-bottom-width: 0.7px;
+    }
+
+    .sudoku td:nth-child(3n) {
+      border-right-width: 2.2px;
+      border-right-color: #111;
+    }
+
+    .sudoku td:nth-child(9) {
+      border-right-width: 0.7px;
+    }
+
+    .empty-cell {
+      color: transparent;
+    }
+
+    .answer-key {
+      display: none;
+      page-break-before: always;
+    }
+
+    .show-answers .answer-key {
+      display: grid;
+    }
+
+    .answer-key table.sudoku {
+      border-color: #555;
+    }
+
+    @media (max-width: 980px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .preview-wrap {
+        padding: 16px;
+      }
+
+      .page {
+        transform-origin: top center;
+        transform: scale(0.62);
+        margin-bottom: -110mm;
+      }
+
+      .play-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .play-tools {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        background: #fff;
+      }
+
+      .controls {
+        padding: 16px;
+      }
+
+      .control-group:nth-of-type(2),
+      .control-group:nth-of-type(3),
+      .control-group:nth-of-type(4),
+      #printBtn {
+        display: none;
+      }
+
+      .mobile-print-note {
+        display: block;
+      }
+
+      .preview-wrap {
+        padding: 0 12px 20px;
+      }
+
+      .page {
+        display: none;
+      }
+
+      .play-area {
+        max-width: none;
+        margin: 0;
+        padding: 12px 0 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .play-head {
+        margin-bottom: 12px;
+      }
+
+      table.play-board,
+      .number-pad {
+        width: min(94vw, 560px);
+      }
+
+      table.play-board {
+        height: min(94vw, 560px);
+      }
+
+      .play-board .cell-value {
+        font-size: 22px;
+      }
+
+      .play-board .notes {
+        font-size: 9px;
+      }
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .controls {
+        display: none;
+      }
+
+      .play-area {
+        display: none;
+      }
+
+      .app-shell {
+        display: block;
+      }
+
+      .preview-wrap {
+        padding: 0;
+        overflow: visible;
+      }
+
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0;
+        box-shadow: none;
+        transform: none;
+        page-break-after: always;
+      }
+
+      .page:last-child {
+        page-break-after: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <aside class="controls">
+      <h1>스도쿠 프린트 메이커</h1>
+      <p class="lede">난이도와 한 페이지당 개수를 고르고 A4로 바로 인쇄하거나 PDF로 저장하세요.</p>
+
+      <div class="control-group">
+        <label class="control-label" for="difficulty">난이도</label>
+        <select id="difficulty">
+          <option value="easy">이지</option>
+          <option value="medium" selected>미디움</option>
+          <option value="difficult">디피컬트</option>
+          <option value="very-difficult">베리 디피컬트</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <span class="control-label">한 페이지 게임 수</span>
+        <div class="segmented" id="countButtons" aria-label="한 페이지 게임 수 선택">
+          <button type="button" data-count="1">1</button>
+          <button type="button" data-count="2" aria-pressed="true">2</button>
+          <button type="button" data-count="3">3</button>
+          <button type="button" data-count="4">4</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label" for="pages">생성할 페이지 수</label>
+        <input id="pages" type="number" min="1" max="20" value="1">
+      </div>
+
+      <div class="control-group">
+        <label class="control-label" for="includeAnswers">
+          <input id="includeAnswers" type="checkbox" style="width:auto; min-height:auto; margin-right:6px;">
+          정답 페이지 포함
+        </label>
+      </div>
+
+      <div class="button-row">
+        <button class="primary" type="button" id="generateBtn">새 퍼즐 생성</button>
+        <button class="secondary" type="button" id="printBtn">인쇄 / PDF 저장</button>
+      </div>
+      <p class="mobile-print-note">모바일에서는 플레이 모드만 표시됩니다. 인쇄와 PDF 저장은 PC에서 사용하세요.</p>
+
+      <p class="status" id="status" aria-live="polite"></p>
+    </aside>
+
+    <section class="preview-wrap" id="preview" aria-label="인쇄 미리보기"></section>
+  </main>
+
+  <script>
+    const difficultySettings = {
+      easy: { label: "이지", givens: 40 },
+      medium: { label: "미디움", givens: 34 },
+      difficult: { label: "디피컬트", givens: 29 },
+      "very-difficult": { label: "베리 디피컬트", givens: 25 }
+    };
+
+    const state = {
+      countPerPage: 2,
+      puzzles: [],
+      selectedCell: null,
+      noteMode: false
+    };
+
+    const SAVE_KEY = "sudoku-print-maker-state-v1";
+
+    const difficultyEl = document.getElementById("difficulty");
+    const pagesEl = document.getElementById("pages");
+    const includeAnswersEl = document.getElementById("includeAnswers");
+    const countButtons = document.getElementById("countButtons");
+    const generateBtn = document.getElementById("generateBtn");
+    const printBtn = document.getElementById("printBtn");
+    const preview = document.getElementById("preview");
+    const statusEl = document.getElementById("status");
+
+    function isMobileMode() {
+      return window.matchMedia("(max-width: 768px)").matches;
+    }
+
+    function nextFrame() {
+      return new Promise(resolve => requestAnimationFrame(resolve));
+    }
+
+    function shuffle(items) {
+      const copy = items.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function emptyGrid() {
+      return Array.from({ length: 9 }, () => Array(9).fill(0));
+    }
+
+    function cloneGrid(grid) {
+      return grid.map(row => row.slice());
+    }
+
+    function canPlace(grid, row, col, value) {
+      for (let i = 0; i < 9; i++) {
+        if (grid[row][i] === value || grid[i][col] === value) return false;
+      }
+
+      const boxRow = Math.floor(row / 3) * 3;
+      const boxCol = Math.floor(col / 3) * 3;
+      for (let r = boxRow; r < boxRow + 3; r++) {
+        for (let c = boxCol; c < boxCol + 3; c++) {
+          if (grid[r][c] === value) return false;
+        }
+      }
+      return true;
+    }
+
+    function findEmptyCell(grid) {
+      let best = null;
+      let bestOptions = null;
+
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          if (grid[row][col] !== 0) continue;
+
+          const options = [];
+          for (let value = 1; value <= 9; value++) {
+            if (canPlace(grid, row, col, value)) options.push(value);
+          }
+
+          if (options.length === 0) return { row, col, options };
+          if (!best || options.length < bestOptions.length) {
+            best = { row, col, options };
+            bestOptions = options;
+          }
+        }
+      }
+
+      return best;
+    }
+
+    function solveGrid(grid) {
+      const cell = findEmptyCell(grid);
+      if (!cell) return true;
+
+      for (const value of shuffle(cell.options)) {
+        grid[cell.row][cell.col] = value;
+        if (solveGrid(grid)) return true;
+        grid[cell.row][cell.col] = 0;
+      }
+
+      return false;
+    }
+
+    function countSolutions(grid, limit = 2) {
+      const cell = findEmptyCell(grid);
+      if (!cell) return 1;
+      if (cell.options.length === 0) return 0;
+
+      let total = 0;
+      for (const value of cell.options) {
+        grid[cell.row][cell.col] = value;
+        total += countSolutions(grid, limit);
+        grid[cell.row][cell.col] = 0;
+        if (total >= limit) return total;
+      }
+
+      return total;
+    }
+
+    function generateSolvedGrid() {
+      const grid = emptyGrid();
+      solveGrid(grid);
+      return grid;
+    }
+
+    function makePuzzle(givensTarget) {
+      const solution = generateSolvedGrid();
+      const puzzle = cloneGrid(solution);
+      const cells = shuffle(Array.from({ length: 81 }, (_, index) => index));
+      let givens = 81;
+
+      for (const index of cells) {
+        if (givens <= givensTarget) break;
+
+        const row = Math.floor(index / 9);
+        const col = index % 9;
+        const backup = puzzle[row][col];
+        puzzle[row][col] = 0;
+
+        if (countSolutions(cloneGrid(puzzle), 2) === 1) {
+          givens--;
+        } else {
+          puzzle[row][col] = backup;
+        }
+      }
+
+      return { puzzle, solution, givens };
+    }
+
+    async function makePuzzleAsync(givensTarget, onProgress) {
+      onProgress?.("정답판 생성 중...");
+      await nextFrame();
+
+      const solution = generateSolvedGrid();
+      const puzzle = cloneGrid(solution);
+      const cells = shuffle(Array.from({ length: 81 }, (_, index) => index));
+      let givens = 81;
+
+      for (let i = 0; i < cells.length; i++) {
+        if (givens <= givensTarget) break;
+
+        const index = cells[i];
+        const row = Math.floor(index / 9);
+        const col = index % 9;
+        const backup = puzzle[row][col];
+        puzzle[row][col] = 0;
+
+        if (countSolutions(cloneGrid(puzzle), 2) === 1) {
+          givens--;
+        } else {
+          puzzle[row][col] = backup;
+        }
+
+        if (i % 3 === 0 || givens <= givensTarget) {
+          const removed = 81 - givens;
+          const targetRemoved = 81 - givensTarget;
+          onProgress?.(`퍼즐 다듬는 중... ${Math.min(removed, targetRemoved)} / ${targetRemoved}`);
+          await nextFrame();
+        }
+      }
+
+      return { puzzle, solution, givens };
+    }
+
+    function createBoard(grid) {
+      const table = document.createElement("table");
+      table.className = "sudoku";
+      table.setAttribute("aria-label", "스도쿠 보드");
+
+      for (let row = 0; row < 9; row++) {
+        const tr = document.createElement("tr");
+        for (let col = 0; col < 9; col++) {
+          const td = document.createElement("td");
+          const value = grid[row][col];
+          td.textContent = value === 0 ? "" : String(value);
+          if (value === 0) td.className = "empty-cell";
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+
+      return table;
+    }
+
+    function createPuzzleCard(item, index, useSolution) {
+      const card = document.createElement("article");
+      card.className = "puzzle-card";
+
+      const meta = document.createElement("div");
+      meta.className = "puzzle-meta";
+      meta.innerHTML = `<strong>${useSolution ? "정답" : "문제"} ${index + 1}</strong><span>${item.difficultyLabel}</span>`;
+
+      card.appendChild(meta);
+      card.appendChild(createBoard(useSolution ? item.solution : item.puzzle));
+      return card;
+    }
+
+    function createPlayableBoard(item) {
+      const table = document.createElement("table");
+      table.className = "play-board";
+      table.setAttribute("aria-label", "플레이용 스도쿠 보드");
+
+      for (let row = 0; row < 9; row++) {
+        const tr = document.createElement("tr");
+        for (let col = 0; col < 9; col++) {
+          const td = document.createElement("td");
+          const content = document.createElement("button");
+          const valueEl = document.createElement("span");
+          const notesEl = document.createElement("span");
+          const value = item.puzzle[row][col];
+
+          content.type = "button";
+          content.className = "cell-content";
+          content.dataset.row = String(row);
+          content.dataset.col = String(col);
+          content.setAttribute("aria-label", `${row + 1}행 ${col + 1}열`);
+          valueEl.className = "cell-value";
+          notesEl.className = "notes";
+
+          if (value !== 0) {
+            td.className = "given";
+            td.dataset.given = "true";
+            td.dataset.value = String(value);
+            valueEl.textContent = String(value);
+          }
+
+          content.appendChild(valueEl);
+          content.appendChild(notesEl);
+          td.appendChild(content);
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+
+      return table;
+    }
+
+    function createPlayArea() {
+      const item = state.puzzles[0];
+      const area = document.createElement("section");
+      area.className = "play-area";
+
+      if (!item) return area;
+
+      const head = document.createElement("div");
+      head.className = "play-head";
+      head.innerHTML = `
+        <div>
+          <h2>플레이 모드</h2>
+          <p class="play-message" id="playMessage">빈칸을 눌러 숫자를 입력하세요.</p>
+        </div>
+        <div class="play-tools">
+          <button type="button" data-play-action="check">풀이 검사</button>
+          <button type="button" data-play-action="reset">초기화</button>
+          <button type="button" data-play-action="hint">힌트 1칸</button>
+          <button type="button" data-play-action="solve">정답 보기</button>
+        </div>
+      `;
+
+      const boardWrap = document.createElement("div");
+      boardWrap.className = "play-board-wrap";
+      boardWrap.appendChild(createPlayableBoard(item));
+      boardWrap.appendChild(createNumberPad());
+
+      area.appendChild(head);
+      area.appendChild(boardWrap);
+      return area;
+    }
+
+    function createNumberPad() {
+      const pad = document.createElement("div");
+      pad.className = "number-pad";
+      pad.setAttribute("aria-label", "숫자 패드");
+
+      for (let number = 1; number <= 9; number++) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = String(number);
+        button.dataset.number = String(number);
+        pad.appendChild(button);
+      }
+
+      const noteButton = document.createElement("button");
+      noteButton.type = "button";
+      noteButton.textContent = state.noteMode ? "일반" : "메모";
+      noteButton.dataset.playAction = "note";
+      noteButton.setAttribute("aria-pressed", String(state.noteMode));
+      noteButton.className = state.noteMode ? "is-on" : "";
+
+      const eraseButton = document.createElement("button");
+      eraseButton.type = "button";
+      eraseButton.textContent = "지움";
+      eraseButton.dataset.playAction = "erase";
+
+      pad.appendChild(noteButton);
+      pad.appendChild(eraseButton);
+      return pad;
+    }
+
+    function createPage(items, pageIndex, totalPages, useSolution) {
+      const page = document.createElement("section");
+      page.className = `page ${useSolution ? "answer-key" : ""}`;
+
+      const header = document.createElement("div");
+      header.className = "page-title";
+      header.innerHTML = `<h2>${useSolution ? "스도쿠 정답" : "스도쿠 문제"}</h2><span>${pageIndex + 1} / ${totalPages}</span>`;
+
+      const grid = document.createElement("div");
+      grid.className = `puzzle-grid layout-${state.countPerPage}`;
+
+      items.forEach((item, offset) => {
+        const puzzleIndex = pageIndex * state.countPerPage + offset;
+        grid.appendChild(createPuzzleCard(item, puzzleIndex, useSolution));
+      });
+
+      page.appendChild(header);
+      page.appendChild(grid);
+      return page;
+    }
+
+    function render() {
+      preview.innerHTML = "";
+      state.selectedCell = null;
+      preview.classList.toggle("show-answers", includeAnswersEl.checked);
+
+      preview.appendChild(createPlayArea());
+
+      const totalPages = Math.ceil(state.puzzles.length / state.countPerPage);
+      for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        const start = pageIndex * state.countPerPage;
+        const items = state.puzzles.slice(start, start + state.countPerPage);
+        preview.appendChild(createPage(items, pageIndex, totalPages, false));
+      }
+
+      if (includeAnswersEl.checked) {
+        for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+          const start = pageIndex * state.countPerPage;
+          const items = state.puzzles.slice(start, start + state.countPerPage);
+          preview.appendChild(createPage(items, pageIndex, totalPages, true));
+        }
+      }
+    }
+
+    function collectPlayState() {
+      return getPlayCells().map(cell => ({
+        value: cell.dataset.given === "true" ? "" : cell.dataset.value || "",
+        notes: cell.dataset.given === "true" ? "" : cell.dataset.notes || "",
+        hint: cell.classList.contains("hint")
+      }));
+    }
+
+    function saveAppState() {
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify({
+          difficulty: difficultyEl.value,
+          pages: pagesEl.value,
+          includeAnswers: includeAnswersEl.checked,
+          countPerPage: state.countPerPage,
+          noteMode: state.noteMode,
+          puzzles: state.puzzles,
+          playCells: collectPlayState()
+        }));
+      } catch (error) {
+        console.warn("Unable to save Sudoku state", error);
+      }
+    }
+
+    function restorePlayState(playCells = []) {
+      getPlayCells().forEach((cell, index) => {
+        if (cell.dataset.given === "true") return;
+
+        const saved = playCells[index];
+        if (!saved) return;
+
+        if (saved.value) {
+          setCellValue(cell, saved.value, saved.hint ? "hint" : "");
+        } else {
+          cell.dataset.value = "";
+          cell.dataset.notes = saved.notes || "";
+          cell.classList.toggle("hint", Boolean(saved.hint));
+          renderNotes(cell);
+        }
+      });
+    }
+
+    function loadAppState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+        if (!saved || !Array.isArray(saved.puzzles) || saved.puzzles.length === 0) {
+          return false;
+        }
+
+        difficultyEl.value = saved.difficulty || difficultyEl.value;
+        pagesEl.value = saved.pages || pagesEl.value;
+        includeAnswersEl.checked = Boolean(saved.includeAnswers);
+        state.countPerPage = Number(saved.countPerPage) || state.countPerPage;
+        state.noteMode = Boolean(saved.noteMode);
+        state.puzzles = isMobileMode() ? saved.puzzles.slice(0, 1) : saved.puzzles;
+        if (isMobileMode()) {
+          state.countPerPage = 1;
+          pagesEl.value = "1";
+        }
+
+        countButtons.querySelectorAll("button").forEach(button => {
+          button.setAttribute("aria-pressed", String(Number(button.dataset.count) === state.countPerPage));
+        });
+
+        render();
+        restorePlayState(saved.playCells);
+        statusEl.textContent = "저장된 게임을 불러왔습니다.";
+        return true;
+      } catch (error) {
+        console.warn("Unable to load Sudoku state", error);
+        return false;
+      }
+    }
+
+    function getPlayCells() {
+      return [...preview.querySelectorAll(".play-board td")];
+    }
+
+    function getSelectedCell() {
+      if (!state.selectedCell) return null;
+      return preview.querySelector(`.play-board .cell-content[data-row="${state.selectedCell.row}"][data-col="${state.selectedCell.col}"]`)?.closest("td") || null;
+    }
+
+    function getCellAt(row, col) {
+      return preview.querySelector(`.play-board .cell-content[data-row="${row}"][data-col="${col}"]`)?.closest("td") || null;
+    }
+
+    function moveSelection(rowStep, colStep) {
+      const start = state.selectedCell || { row: 0, col: 0 };
+      let row = start.row;
+      let col = start.col;
+
+      for (let i = 0; i < 81; i++) {
+        row = (row + rowStep + 9) % 9;
+        col = (col + colStep + 9) % 9;
+        const cell = getCellAt(row, col);
+        if (cell && cell.dataset.given !== "true") {
+          selectCell(cell);
+          cell.querySelector(".cell-content").focus();
+          return;
+        }
+      }
+    }
+
+    function setPlayMessage(message) {
+      const messageEl = document.getElementById("playMessage");
+      if (messageEl) messageEl.textContent = message;
+    }
+
+    function renderNotes(cell) {
+      const notesEl = cell.querySelector(".notes");
+      const notes = (cell.dataset.notes || "").split("").filter(Boolean);
+      notesEl.innerHTML = "";
+
+      for (let number = 1; number <= 9; number++) {
+        const span = document.createElement("span");
+        span.textContent = notes.includes(String(number)) ? String(number) : "";
+        notesEl.appendChild(span);
+      }
+    }
+
+    function setCellValue(cell, value, className = "") {
+      cell.dataset.value = value ? String(value) : "";
+      cell.dataset.notes = "";
+      cell.classList.remove("wrong", "correct", "hint");
+      if (className) cell.classList.add(className);
+      cell.querySelector(".cell-value").textContent = value ? String(value) : "";
+      renderNotes(cell);
+    }
+
+    function toggleCellNote(cell, number) {
+      if (cell.dataset.value) return;
+      const current = new Set((cell.dataset.notes || "").split("").filter(Boolean));
+      const digit = String(number);
+      let removed = false;
+      if (current.has(digit)) {
+        current.delete(digit);
+        removed = true;
+      } else {
+        current.add(digit);
+      }
+      cell.dataset.notes = [...current].sort().join("");
+      cell.classList.remove("wrong", "correct", "hint");
+      renderNotes(cell);
+      return removed;
+    }
+
+    function selectCell(cell) {
+      if (!cell || cell.dataset.given === "true") return;
+      getPlayCells().forEach(item => item.classList.remove("selected"));
+      cell.classList.add("selected");
+
+      const button = cell.querySelector(".cell-content");
+      state.selectedCell = {
+        row: Number(button.dataset.row),
+        col: Number(button.dataset.col)
+      };
+      button.focus();
+      setPlayMessage(state.noteMode ? "메모할 숫자를 누르세요. 같은 숫자를 다시 누르면 그 메모만 지워집니다." : "입력할 숫자를 누르세요.");
+    }
+
+    function enterNumber(number) {
+      const cell = getSelectedCell();
+      if (!cell || cell.dataset.given === "true") {
+        setPlayMessage("먼저 빈칸을 선택하세요.");
+        return;
+      }
+
+      if (state.noteMode) {
+        const removed = toggleCellNote(cell, number);
+        setPlayMessage(removed ? `${number} 메모를 지웠습니다.` : `${number} 메모를 추가했습니다.`);
+      } else {
+        setCellValue(cell, number);
+        setPlayMessage("입력했습니다.");
+      }
+      saveAppState();
+    }
+
+    function checkPlayableBoard() {
+      const item = state.puzzles[0];
+      if (!item) return;
+
+      let empty = 0;
+      let wrong = 0;
+
+      for (const cell of getPlayCells()) {
+        if (cell.dataset.given === "true") continue;
+
+        cell.classList.remove("wrong", "correct");
+        const button = cell.querySelector(".cell-content");
+        const row = Number(button.dataset.row);
+        const col = Number(button.dataset.col);
+        const value = Number(cell.dataset.value);
+
+        if (!value) {
+          empty++;
+          continue;
+        }
+
+        if (value === item.solution[row][col]) {
+          cell.classList.add("correct");
+        } else {
+          cell.classList.add("wrong");
+          wrong++;
+        }
+      }
+
+      if (wrong > 0) {
+        setPlayMessage(`틀린 칸 ${wrong}개가 표시됐습니다.`);
+      } else if (empty > 0) {
+        setPlayMessage(`현재까지 맞습니다. 빈칸 ${empty}개가 남았어요.`);
+      } else {
+        setPlayMessage("완성입니다. 모든 칸이 정답이에요.");
+      }
+    }
+
+    function resetPlayableBoard() {
+      for (const cell of getPlayCells()) {
+        if (cell.dataset.given === "true") continue;
+        setCellValue(cell, "");
+        cell.dataset.notes = "";
+        renderNotes(cell);
+      }
+      setPlayMessage("초기화했습니다. 다시 풀어보세요.");
+      saveAppState();
+    }
+
+    function revealPlayableBoard() {
+      const item = state.puzzles[0];
+      if (!item) return;
+
+      for (const cell of getPlayCells()) {
+        const button = cell.querySelector(".cell-content");
+        const row = Number(button.dataset.row);
+        const col = Number(button.dataset.col);
+        setCellValue(cell, item.solution[row][col], cell.dataset.given === "true" ? "" : "correct");
+      }
+      setPlayMessage("정답을 표시했습니다.");
+      saveAppState();
+    }
+
+    function fillHintCell() {
+      const item = state.puzzles[0];
+      if (!item) return;
+
+      const candidates = getPlayCells().filter(cell => {
+        if (cell.dataset.given === "true") return false;
+        const button = cell.querySelector(".cell-content");
+        const row = Number(button.dataset.row);
+        const col = Number(button.dataset.col);
+        return Number(cell.dataset.value) !== item.solution[row][col];
+      });
+
+      if (candidates.length === 0) {
+        setPlayMessage("이미 모두 채워졌습니다.");
+        return;
+      }
+
+      const cell = candidates[Math.floor(Math.random() * candidates.length)];
+      const button = cell.querySelector(".cell-content");
+      const row = Number(button.dataset.row);
+      const col = Number(button.dataset.col);
+      setCellValue(cell, item.solution[row][col], "hint");
+      selectCell(cell);
+      setPlayMessage("힌트 1칸을 채웠습니다. 노란색으로 표시됩니다.");
+      saveAppState();
+    }
+
+    function eraseSelectedCell() {
+      const cell = getSelectedCell();
+      if (!cell || cell.dataset.given === "true") {
+        setPlayMessage("먼저 빈칸을 선택하세요.");
+        return;
+      }
+      setCellValue(cell, "");
+      setPlayMessage("선택한 칸을 지웠습니다.");
+      saveAppState();
+    }
+
+    function toggleNoteMode() {
+      state.noteMode = !state.noteMode;
+      preview.querySelectorAll('[data-play-action="note"]').forEach(button => {
+        button.classList.toggle("is-on", state.noteMode);
+        button.textContent = state.noteMode ? "일반" : "메모";
+        button.setAttribute("aria-pressed", String(state.noteMode));
+      });
+      setPlayMessage(state.noteMode ? "메모 모드입니다. 같은 숫자를 다시 누르면 그 메모만 지워집니다." : "일반 입력 모드입니다.");
+      saveAppState();
+    }
+
+    function handlePlayAction(event) {
+      const cellButton = event.target.closest(".play-board .cell-content");
+      if (cellButton) {
+        selectCell(cellButton.closest("td"));
+        return;
+      }
+
+      const numberButton = event.target.closest("[data-number]");
+      if (numberButton) {
+        enterNumber(Number(numberButton.dataset.number));
+        return;
+      }
+
+      const button = event.target.closest("[data-play-action]");
+      if (!button) return;
+
+      const action = button.dataset.playAction;
+      if (action === "check") checkPlayableBoard();
+      if (action === "reset") resetPlayableBoard();
+      if (action === "hint") fillHintCell();
+      if (action === "solve") revealPlayableBoard();
+      if (action === "erase") eraseSelectedCell();
+      if (action === "note") toggleNoteMode();
+    }
+
+    function handleKeyboard(event) {
+      const key = event.key;
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === "INPUT" || activeTag === "SELECT") return;
+
+      if (key === "ArrowUp") {
+        event.preventDefault();
+        moveSelection(-1, 0);
+      } else if (key === "ArrowDown") {
+        event.preventDefault();
+        moveSelection(1, 0);
+      } else if (key === "ArrowLeft") {
+        event.preventDefault();
+        moveSelection(0, -1);
+      } else if (key === "ArrowRight") {
+        event.preventDefault();
+        moveSelection(0, 1);
+      } else if (/^[1-9]$/.test(key)) {
+        event.preventDefault();
+        enterNumber(Number(key));
+      } else if (key === "Backspace" || key === "Delete" || key === "0") {
+        event.preventDefault();
+        eraseSelectedCell();
+      } else if (key.toLowerCase() === "m") {
+        event.preventDefault();
+        toggleNoteMode();
+      }
+    }
+
+    async function generatePuzzles() {
+      const difficulty = difficultySettings[difficultyEl.value];
+      const pages = Math.max(1, Math.min(20, Number(pagesEl.value) || 1));
+      const mobile = isMobileMode();
+      const effectivePages = mobile ? 1 : pages;
+      const effectiveCount = mobile ? 1 : state.countPerPage;
+      pagesEl.value = String(effectivePages);
+      if (mobile) state.countPerPage = 1;
+
+      const total = effectivePages * effectiveCount;
+      generateBtn.disabled = true;
+      printBtn.disabled = true;
+      statusEl.textContent = mobile ? "모바일용 퍼즐 1개 생성 준비 중..." : `${total}개 퍼즐 생성 준비 중...`;
+
+      await nextFrame();
+
+      const nextPuzzles = [];
+      for (let i = 0; i < total; i++) {
+        statusEl.textContent = `${i + 1} / ${total} 생성 중...`;
+        await nextFrame();
+        const puzzle = await makePuzzleAsync(difficulty.givens, message => {
+          statusEl.textContent = `${i + 1} / ${total} ${message}`;
+        });
+        nextPuzzles.push({
+          ...puzzle,
+          difficultyLabel: difficulty.label
+        });
+        statusEl.textContent = `${i + 1} / ${total} 완료`;
+        await nextFrame();
+      }
+
+      state.puzzles = nextPuzzles;
+      render();
+      statusEl.textContent = mobile ? "완료: 모바일용 퍼즐 1개" : `완료: 유일해 검증된 퍼즐 ${total}개`;
+      generateBtn.disabled = false;
+      printBtn.disabled = mobile;
+      saveAppState();
+    }
+
+    countButtons.addEventListener("click", event => {
+      const button = event.target.closest("button[data-count]");
+      if (!button) return;
+
+      state.countPerPage = Number(button.dataset.count);
+      countButtons.querySelectorAll("button").forEach(item => {
+        item.setAttribute("aria-pressed", String(item === button));
+      });
+      generatePuzzles();
+    });
+
+    difficultyEl.addEventListener("change", generatePuzzles);
+    pagesEl.addEventListener("change", generatePuzzles);
+    includeAnswersEl.addEventListener("change", () => {
+      render();
+      saveAppState();
+    });
+    generateBtn.addEventListener("click", generatePuzzles);
+    printBtn.addEventListener("click", () => {
+      if (isMobileMode()) {
+        statusEl.textContent = "모바일에서는 플레이 모드만 지원합니다. 인쇄와 PDF 저장은 PC에서 사용하세요.";
+        return;
+      }
+      window.print();
+    });
+    preview.addEventListener("click", handlePlayAction);
+    document.addEventListener("keydown", handleKeyboard);
+
+    if (!loadAppState()) {
+      generatePuzzles();
+    }
+
+    if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(error => {
+          console.warn("Service worker registration failed", error);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
