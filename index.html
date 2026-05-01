@@ -148,6 +148,13 @@
       color: var(--muted);
     }
 
+    .mobile-print-note {
+      display: none;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .play-area {
       max-width: 760px;
       margin: 0 auto 28px;
@@ -573,6 +580,65 @@
       }
     }
 
+    @media (max-width: 768px) {
+      body {
+        background: #fff;
+      }
+
+      .controls {
+        padding: 16px;
+      }
+
+      .control-group:nth-of-type(2),
+      .control-group:nth-of-type(3),
+      .control-group:nth-of-type(4),
+      #printBtn {
+        display: none;
+      }
+
+      .mobile-print-note {
+        display: block;
+      }
+
+      .preview-wrap {
+        padding: 0 12px 20px;
+      }
+
+      .page {
+        display: none;
+      }
+
+      .play-area {
+        max-width: none;
+        margin: 0;
+        padding: 12px 0 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .play-head {
+        margin-bottom: 12px;
+      }
+
+      table.play-board,
+      .number-pad {
+        width: min(94vw, 560px);
+      }
+
+      table.play-board {
+        height: min(94vw, 560px);
+      }
+
+      .play-board .cell-value {
+        font-size: 22px;
+      }
+
+      .play-board .notes {
+        font-size: 9px;
+      }
+    }
+
     @page {
       size: A4 portrait;
       margin: 0;
@@ -657,6 +723,7 @@
         <button class="primary" type="button" id="generateBtn">새 퍼즐 생성</button>
         <button class="secondary" type="button" id="printBtn">인쇄 / PDF 저장</button>
       </div>
+      <p class="mobile-print-note">모바일에서는 플레이 모드만 표시됩니다. 인쇄와 PDF 저장은 PC에서 사용하세요.</p>
 
       <p class="status" id="status" aria-live="polite"></p>
     </aside>
@@ -689,6 +756,14 @@
     const printBtn = document.getElementById("printBtn");
     const preview = document.getElementById("preview");
     const statusEl = document.getElementById("status");
+
+    function isMobileMode() {
+      return window.matchMedia("(max-width: 768px)").matches;
+    }
+
+    function nextFrame() {
+      return new Promise(resolve => requestAnimationFrame(resolve));
+    }
 
     function shuffle(items) {
       const copy = items.slice();
@@ -799,6 +874,41 @@
           givens--;
         } else {
           puzzle[row][col] = backup;
+        }
+      }
+
+      return { puzzle, solution, givens };
+    }
+
+    async function makePuzzleAsync(givensTarget, onProgress) {
+      onProgress?.("정답판 생성 중...");
+      await nextFrame();
+
+      const solution = generateSolvedGrid();
+      const puzzle = cloneGrid(solution);
+      const cells = shuffle(Array.from({ length: 81 }, (_, index) => index));
+      let givens = 81;
+
+      for (let i = 0; i < cells.length; i++) {
+        if (givens <= givensTarget) break;
+
+        const index = cells[i];
+        const row = Math.floor(index / 9);
+        const col = index % 9;
+        const backup = puzzle[row][col];
+        puzzle[row][col] = 0;
+
+        if (countSolutions(cloneGrid(puzzle), 2) === 1) {
+          givens--;
+        } else {
+          puzzle[row][col] = backup;
+        }
+
+        if (i % 3 === 0 || givens <= givensTarget) {
+          const removed = 81 - givens;
+          const targetRemoved = 81 - givensTarget;
+          onProgress?.(`퍼즐 다듬는 중... ${Math.min(removed, targetRemoved)} / ${targetRemoved}`);
+          await nextFrame();
         }
       }
 
@@ -1038,7 +1148,11 @@
         includeAnswersEl.checked = Boolean(saved.includeAnswers);
         state.countPerPage = Number(saved.countPerPage) || state.countPerPage;
         state.noteMode = Boolean(saved.noteMode);
-        state.puzzles = saved.puzzles;
+        state.puzzles = isMobileMode() ? saved.puzzles.slice(0, 1) : saved.puzzles;
+        if (isMobileMode()) {
+          state.countPerPage = 1;
+          pagesEl.value = "1";
+        }
 
         countButtons.querySelectorAll("button").forEach(button => {
           button.setAttribute("aria-pressed", String(Number(button.dataset.count) === state.countPerPage));
@@ -1327,30 +1441,39 @@
     async function generatePuzzles() {
       const difficulty = difficultySettings[difficultyEl.value];
       const pages = Math.max(1, Math.min(20, Number(pagesEl.value) || 1));
-      pagesEl.value = String(pages);
+      const mobile = isMobileMode();
+      const effectivePages = mobile ? 1 : pages;
+      const effectiveCount = mobile ? 1 : state.countPerPage;
+      pagesEl.value = String(effectivePages);
+      if (mobile) state.countPerPage = 1;
 
-      const total = pages * state.countPerPage;
+      const total = effectivePages * effectiveCount;
       generateBtn.disabled = true;
       printBtn.disabled = true;
-      statusEl.textContent = `${total}개 퍼즐 생성 중...`;
+      statusEl.textContent = mobile ? "모바일용 퍼즐 1개 생성 준비 중..." : `${total}개 퍼즐 생성 준비 중...`;
 
-      await new Promise(resolve => setTimeout(resolve, 20));
+      await nextFrame();
 
       const nextPuzzles = [];
       for (let i = 0; i < total; i++) {
         statusEl.textContent = `${i + 1} / ${total} 생성 중...`;
+        await nextFrame();
+        const puzzle = await makePuzzleAsync(difficulty.givens, message => {
+          statusEl.textContent = `${i + 1} / ${total} ${message}`;
+        });
         nextPuzzles.push({
-          ...makePuzzle(difficulty.givens),
+          ...puzzle,
           difficultyLabel: difficulty.label
         });
-        await new Promise(resolve => setTimeout(resolve, 0));
+        statusEl.textContent = `${i + 1} / ${total} 완료`;
+        await nextFrame();
       }
 
       state.puzzles = nextPuzzles;
       render();
-      statusEl.textContent = `완료: 유일해 검증된 퍼즐 ${total}개`;
+      statusEl.textContent = mobile ? "완료: 모바일용 퍼즐 1개" : `완료: 유일해 검증된 퍼즐 ${total}개`;
       generateBtn.disabled = false;
-      printBtn.disabled = false;
+      printBtn.disabled = mobile;
       saveAppState();
     }
 
@@ -1372,7 +1495,13 @@
       saveAppState();
     });
     generateBtn.addEventListener("click", generatePuzzles);
-    printBtn.addEventListener("click", () => window.print());
+    printBtn.addEventListener("click", () => {
+      if (isMobileMode()) {
+        statusEl.textContent = "모바일에서는 플레이 모드만 지원합니다. 인쇄와 PDF 저장은 PC에서 사용하세요.";
+        return;
+      }
+      window.print();
+    });
     preview.addEventListener("click", handlePlayAction);
     document.addEventListener("keydown", handleKeyboard);
 
