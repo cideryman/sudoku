@@ -1514,6 +1514,21 @@
       generatePuzzles();
     }
 
+    if (new URLSearchParams(window.location.search).get("print") === "1") {
+      const waitForPrintReady = () => {
+        const ready = document.querySelectorAll(".page").length > 0 && !generateBtn.disabled;
+        if (!ready) {
+          setTimeout(waitForPrintReady, 250);
+          return;
+        }
+        setTimeout(() => {
+          window.focus();
+          window.print();
+        }, 900);
+      };
+      waitForPrintReady();
+    }
+
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js").catch(error => {
