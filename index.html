@@ -1443,6 +1443,158 @@
       }
     }
 
+    function sudokuPrintStyles() {
+      return `
+        @page { size: A4 portrait; margin: 0; }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          background: #fff;
+          color: #202124;
+          font-family: Arial, "Malgun Gothic", sans-serif;
+        }
+        .page {
+          width: 210mm;
+          min-height: 297mm;
+          margin: 0;
+          padding: 12mm;
+          background: #fff;
+          display: grid;
+          gap: 8mm;
+          align-content: start;
+          page-break-after: always;
+        }
+        .page:last-child { page-break-after: auto; }
+        .page-title {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 12px;
+          border-bottom: 1px solid #cfd5dc;
+          padding-bottom: 5mm;
+        }
+        .page-title h2 {
+          margin: 0;
+          font-size: 18px;
+          letter-spacing: 0;
+        }
+        .page-title span {
+          color: #62666d;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+        .puzzle-grid {
+          display: grid;
+          gap: 7mm;
+          align-items: start;
+          justify-items: center;
+        }
+        .layout-1 { grid-template-columns: 1fr; }
+        .layout-2 { grid-template-columns: 1fr; }
+        .layout-3, .layout-4 { grid-template-columns: repeat(2, 1fr); gap: 6mm; }
+        .puzzle-card {
+          width: 100%;
+          display: grid;
+          gap: 3mm;
+          justify-items: center;
+          break-inside: avoid;
+        }
+        .puzzle-meta {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 12px;
+          color: #62666d;
+        }
+        table.sudoku {
+          border-collapse: collapse;
+          table-layout: fixed;
+          background: #fff;
+          border: 2.4px solid #111;
+          width: var(--board-size);
+          height: var(--board-size);
+        }
+        .layout-1 table.sudoku { --board-size: 168mm; }
+        .layout-2 table.sudoku { --board-size: 114mm; }
+        .layout-3 table.sudoku,
+        .layout-4 table.sudoku { --board-size: 82mm; }
+        .sudoku td {
+          width: 11.111%;
+          height: 11.111%;
+          border: 0.7px solid #565656;
+          text-align: center;
+          vertical-align: middle;
+          font-size: 18px;
+          font-weight: 700;
+          color: #111;
+          padding: 0;
+        }
+        .layout-1 .sudoku td { font-size: 25px; }
+        .layout-2 .sudoku td { font-size: 21px; }
+        .sudoku tr:nth-child(3n) td {
+          border-bottom-width: 2.2px;
+          border-bottom-color: #111;
+        }
+        .sudoku tr:nth-child(9) td { border-bottom-width: 0.7px; }
+        .sudoku td:nth-child(3n) {
+          border-right-width: 2.2px;
+          border-right-color: #111;
+        }
+        .sudoku td:nth-child(9) { border-right-width: 0.7px; }
+        .answer-key { display: grid; }
+      `;
+    }
+
+    function sudokuPrintHtml() {
+      const pages = [...preview.querySelectorAll(".page")];
+      return pages.map(page => page.outerHTML).join("");
+    }
+
+    function printSudokuStandalone(replaceCurrent = false) {
+      const content = sudokuPrintHtml();
+      if (!content) {
+        statusEl.textContent = "인쇄할 퍼즐이 아직 준비되지 않았습니다.";
+        return;
+      }
+
+      const html = `<!doctype html>
+        <html lang="ko">
+        <head>
+          <meta charset="utf-8">
+          <title>스도쿠 인쇄</title>
+          <style>${sudokuPrintStyles()}</style>
+        </head>
+        <body>
+          ${content}
+          <script>
+            window.addEventListener("load", () => {
+              setTimeout(() => {
+                window.focus();
+                window.print();
+              }, 700);
+            });
+          <\/script>
+        </body>
+        </html>`;
+
+      if (replaceCurrent) {
+        document.open();
+        document.write(html);
+        document.close();
+        return;
+      }
+
+      const popup = window.open("", "_blank");
+      if (!popup) {
+        statusEl.textContent = "팝업이 차단되어 인쇄 창을 열 수 없습니다.";
+        return;
+      }
+      popup.document.open();
+      popup.document.write(html);
+      popup.document.close();
+    }
+
     async function generatePuzzles() {
       const difficulty = difficultySettings[difficultyEl.value];
       const pages = Math.max(1, Math.min(20, Number(pagesEl.value) || 1));
@@ -1505,7 +1657,7 @@
         statusEl.textContent = "모바일에서는 플레이 모드만 지원합니다. 인쇄와 PDF 저장은 PC에서 사용하세요.";
         return;
       }
-      window.print();
+      printSudokuStandalone(false);
     });
     preview.addEventListener("click", handlePlayAction);
     document.addEventListener("keydown", handleKeyboard);
@@ -1521,10 +1673,7 @@
           setTimeout(waitForPrintReady, 250);
           return;
         }
-        setTimeout(() => {
-          window.focus();
-          window.print();
-        }, 900);
+        printSudokuStandalone(true);
       };
       waitForPrintReady();
     }
